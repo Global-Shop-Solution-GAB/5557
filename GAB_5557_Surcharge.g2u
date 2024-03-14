@@ -1,0 +1,60 @@
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+	V.Local.sRouter.Declare
+	V.Local.sPart.Declare
+	V.Local.sLoc.Declare
+	V.Local.sOrder.Declare
+	V.Local.sLine.Declare
+	V.Local.sSQL.Declare
+	V.Local.sRet.Declare
+	V.Local.sLot.Declare
+	V.Local.sBin.Declare
+	V.Local.sHeat.Declare
+	V.Local.sSerial.Declare
+	V.Local.sJob.Declare
+	V.Local.sSFX.Declare
+	V.Local.sJS.Declare
+	
+	'Add to Hook 52100
+	
+	V.Local.sOrder.Set(V.Passed.ORDER)
+	V.Local.sLine.Set(V.Passed.LINE)
+	F.Intrinsic.String.Left(V.Local.sLine,3,V.Local.sLine)
+	V.Local.sPart.Set(V.Passed.PART)
+	V.Local.sLoc.Set(V.Passed.LOCN)
+	
+	'Open Company Connection
+	F.ODBC.Connection!conx.OpenCompanyConnection
+	
+	'Return Lot, Bin, Heat, Serial for shipped parts
+	F.Intrinsic.String.Build("SELECT TOP 1 LOT, BIN, HEAT, SERIAL_NUMBER FROM V_ITEM_HISTORY WHERE CODE_TRANSACTION = 'O35' AND PART = '{0}' AND LOCATION = '{1}' AND ORDER_NO = '{2}' AND ORDER_LINE = '{3}' ORDER BY DATE_HISTORY DESC;", V.Local.sPart, V.Local.sLoc, V.Local.sOrder, V.Local.sLine,V.Local.sSQL)
+	F.ODBC.Connection!conx.ExecuteAndReturn(v.Local.sSQL,v.Local.sRet)
+	
+	F.Intrinsic.String.Split(V.Local.sRet, "*!*", V.Local.sRet)  
+	
+	V.Local.sLot.Set(V.Local.sRet(0))
+	V.Local.sBin.Set(V.Local.sRet(1))
+	V.Local.sHeat.Set(V.Local.sRet(2))
+	V.Local.sSerial.Set(V.Local.sRet(3))
+	
+	'Return Job and Suffix
+	F.Intrinsic.String.Build("SELECT JOB, SUFFIX FROM V_ITEM_HISTORY WHERE CODE_TRANSACTION in ('J52', 'S52', 'C52') AND PART = '{0}' AND LOT = '{1}' AND BIN = '{2}' AND HEAT = '{3}' AND SERIAL_NUMBER = '{4}';", V.Local.sPart, V.Local.sLot, V.Local.sBin, V.Local.sHeat, V.Local.sSerial,V.Local.sSQL)
+	F.ODBC.Connection!conx.ExecuteAndReturn(v.Local.sSQL,v.Local.sJS)
+	
+	F.Intrinsic.String.Split(v.Local.sJS, "*!*", v.Local.sJS)
+	
+	V.Local.sJob.Set(V.Local.sJS(0))
+	V.Local.sSFX.Set(V.Local.sJS(1))
+	
+	'Return Router from work order
+	F.Intrinsic.String.Build("SELECT ROUTER FROM V_JOB_HEADER WHERE JOB = '{0}' AND SUFFIX = '{1}';", V.Local.sJob,V.Local.sSFX,V.Local.sSQL)
+	F.ODBC.Connection!conx.ExecuteAndReturn(v.Local.sSQL,v.Local.sRouter)
+	
+	'Sets Router to Router from work order 
+	V.Passed.ROUTER.Set(V.Local.sRouter)
+	
+	F.ODBC.Connection!conx.Close
+	F.Intrinsic.Control.End
+Program.Sub.Main.End
